@@ -30,7 +30,7 @@ def get_stock_prices_with_change(tickers):
             pct_change = ((latest - prev) / prev) * 100
             data[ticker] = {
                 "price": round(latest, 2),
-                "change_pct": round(pct_change, 2)
+                "change_pct": round(pct_change, 2),
             }
         else:
             data[ticker] = {"price": None, "change_pct": None}
@@ -39,6 +39,5 @@ def get_stock_prices_with_change(tickers):
 
 if __name__ == "__main__":
     from config import TICKERS
+
     print(get_stock_prices(TICKERS))
-
-

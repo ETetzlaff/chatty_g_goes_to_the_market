@@ -9,46 +9,38 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 TICKERS = [
     # Technology
-    "AAPL",   # Apple
-    "MSFT",   # Microsoft
-    "NVDA",   # Nvidia
+    "AAPL",  # Apple
+    "MSFT",  # Microsoft
+    "NVDA",  # Nvidia
     "GOOGL",  # Alphabet
-
     # Financials
-    "JPM",    # JPMorgan Chase
+    "JPM",  # JPMorgan Chase
     "BRK.B",  # Berkshire Hathaway
-    "V",      # Visa
-
+    "V",  # Visa
     # Healthcare
-    "JNJ",    # Johnson & Johnson
-    "PFE",    # Pfizer
-    "UNH",    # UnitedHealth
-
+    "JNJ",  # Johnson & Johnson
+    "PFE",  # Pfizer
+    "UNH",  # UnitedHealth
     # Consumer Discretionary
-    "AMZN",   # Amazon
-    "TSLA",   # Tesla
-    "HD",     # Home Depot
-
+    "AMZN",  # Amazon
+    "TSLA",  # Tesla
+    "HD",  # Home Depot
     # Consumer Staples
-    "PG",     # Procter & Gamble
-    "KO",     # Coca-Cola
-    "PEP",    # PepsiCo
-
+    "PG",  # Procter & Gamble
+    "KO",  # Coca-Cola
+    "PEP",  # PepsiCo
     # Energy
-    "XOM",    # Exxon Mobil
-    "CVX",    # Chevron
-
+    "XOM",  # Exxon Mobil
+    "CVX",  # Chevron
     # Industrials
-    "BA",     # Boeing
-    "CAT",    # Caterpillar
-
+    "BA",  # Boeing
+    "CAT",  # Caterpillar
     # Other / Diversifiers
-    "GLD",    # SPDR Gold Trust (gold ETF)
-    "BTC-USD",# Bitcoin (USD)
-    "SPY",     # S&P 500 ETF
+    "GLD",  # SPDR Gold Trust (gold ETF)
+    "BTC-USD",  # Bitcoin (USD)
+    "SPY",  # S&P 500 ETF
     "VOO",
     "VTI",
-
     # ETF / Index Funds
     # "VOO",
     # "VTI",
@@ -57,4 +49,3 @@ TICKERS = [
     # "XLK",
     # "XLE",
 ]
-
