@@ -5,12 +5,15 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 
 def analyze_prices(prices):
     prompt = (
-        f"Here are today's stock prices: {prices}.\n"
-        "Give me a short, insightful analysis of what might be going on in the market today."
+        f"""
+Here are today's stock prices: {prices}.\n"
+"Give me a short, insightful analysis of what might be going on in the market today."
+        """
     )
 
     response = client.chat.completions.create(
-        model="gpt-5",
+        # model="gpt-5",
+        model="gpt-4o",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7
     )
