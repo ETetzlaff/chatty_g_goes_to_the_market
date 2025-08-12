@@ -5,7 +5,7 @@ import datetime
 from pathlib import Path
 
 import yfinance as yf
-from newsfetcher import get_balanced_headlines
+from news_fetcher import get_balanced_headlines
 
 
 # -----------------------------
@@ -14,6 +14,8 @@ from newsfetcher import get_balanced_headlines
 CSV_FILE = Path("data/schwab_holdings.csv")
 JSON_FILE = Path("account.json")
 LOGS_DIR = Path("logs")
+
+STARTER_STOCKS = ["AAPL", "MSFT", "TSLA", "NVDA", "AMZN"]
 
 
 # -----------------------------
@@ -59,7 +61,7 @@ def convert_schwab_csv(csv_file, json_file):
         "account_name": "Schwab Brokerage",
         "cash_balance": cash_balance,
         "holdings": holdings,
-        "last_updated": datetime.datetime.utcnow().isoformat(),
+        "last_updated": datetime.datetime.now(datetime.UTC).isoformat(),
     }
 
     with open(json_file, "w", encoding="utf-8") as f:
@@ -89,20 +91,32 @@ def get_prices(tickers):
 
 
 # -----------------------------
-# Placeholder News Fetcher
-# -----------------------------
-# def get_company_news(ticker):
-    # # TODO: replace with your real news fetcher
-    # return [f"Sample news headline for {ticker}"]
-
-
-# -----------------------------
 # Advisor Logic (Buy/Sell)
 # -----------------------------
 def analyze_holdings(account_data):
     holdings = account_data.get("holdings", [])
     cash_balance = account_data.get("cash_balance", 0.0)
 
+    # Starter allocation if no holdings or zero shares
+    if not holdings or all(h.get("shares", 0) == 0 for h in holdings):
+        prices = get_prices(STARTER_STOCKS)
+        recommendations = {"buy": [], "sell": []}
+        total_cash = cash_balance
+        per_stock_cash = total_cash / len(STARTER_STOCKS) if STARTER_STOCKS else 0
+
+        for ticker in STARTER_STOCKS:
+            price = prices.get(ticker)
+            if price and price > 0:
+                shares = round(per_stock_cash / price, 3)
+                if shares > 0:
+                    recommendations["buy"].append({
+                        "ticker": ticker,
+                        "shares": shares,
+                        "reason": "Initial stock allocation with fractional shares"
+                    })
+        return recommendations, {}, prices
+
+    # Normal analysis with existing holdings
     tickers = [h["ticker"] for h in holdings]
     prices = get_prices(tickers)
 
@@ -111,7 +125,7 @@ def analyze_holdings(account_data):
 
     for h in holdings:
         ticker = h["ticker"]
-        shares = h["shares"]
+        shares = h.get("shares", 0)
         market_value = h.get("market_value", 0)
         avg_price = market_value / shares if shares else 0
         current_price = prices.get(ticker)
@@ -124,25 +138,19 @@ def analyze_holdings(account_data):
 
         # Sell rule: down >5%
         if change_pct <= -5:
-            recommendations["sell"].append(
-                {
-                    "ticker": ticker,
-                    "shares": shares,
-                    "reason": f"Down {change_pct:.2f}% from avg price",
-                }
-            )
+            recommendations["sell"].append({
+                "ticker": ticker,
+                "shares": shares,
+                "reason": f"Down {change_pct:.2f}% from avg price"
+            })
 
     # Buy rule example: buy QQQ if cash available
     if cash_balance > 500:
-        recommendations["buy"].append(
-            {
-                "ticker": "QQQ",
-                "shares": int(
-                    cash_balance // 300
-                ),  # Rough estimate: buy as many 300$ shares as possible
-                "reason": "Tech sector momentum placeholder",
-            }
-        )
+        recommendations["buy"].append({
+            "ticker": "QQQ",
+            "shares": int(cash_balance // 300),  # Rough estimate
+            "reason": "Tech sector momentum placeholder"
+        })
 
     return recommendations, headlines, prices
 
