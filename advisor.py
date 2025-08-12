@@ -93,3 +93,17 @@ if __name__ == "__main__":
     }
 
     run_advisor(account_data_example)
+
+    # Path to account file
+    account_file = "account.json"
+
+    # Make sure the file exists
+    if not os.path.exists(account_file):
+        raise FileNotFoundError(f"Account file '{account_file}' not found. Please create it.")
+
+    # Read account data from JSON
+    with open(account_file, "r") as f:
+        account_data = json.load(f)
+
+    # Run the advisor with provided data
+    run_advisor(account_data)
