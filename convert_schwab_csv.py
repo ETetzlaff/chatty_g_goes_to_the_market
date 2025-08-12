@@ -32,21 +32,22 @@ def convert_csv_to_json(csv_file, json_file):
                 market_value = 0
 
             # Schwab sometimes lists "Cash & Cash Investments" as a pseudo-symbol
-            if "CASH" in symbol.upper() or "MONEY MARKET" in row.get("Description", "").upper():
+            if (
+                "CASH" in symbol.upper()
+                or "MONEY MARKET" in row.get("Description", "").upper()
+            ):
                 cash_balance += market_value
                 continue
 
-            holdings.append({
-                "ticker": symbol,
-                "shares": quantity,
-                "market_value": market_value
-            })
+            holdings.append(
+                {"ticker": symbol, "shares": quantity, "market_value": market_value}
+            )
 
     account_data = {
         "account_name": "Schwab Brokerage",
         "cash_balance": cash_balance,
         "holdings": holdings,
-        "last_updated": datetime.utcnow().isoformat()
+        "last_updated": datetime.utcnow().isoformat(),
     }
 
     with open(json_file, "w", encoding="utf-8") as f:
@@ -57,4 +58,3 @@ def convert_csv_to_json(csv_file, json_file):
 
 if __name__ == "__main__":
     convert_csv_to_json(CSV_FILE, OUTPUT_FILE)
-
