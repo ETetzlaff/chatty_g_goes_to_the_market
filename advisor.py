@@ -97,23 +97,28 @@ def analyze_holdings(account_data):
     holdings = account_data.get("holdings", [])
     cash_balance = account_data.get("cash_balance", 0.0)
 
-    # Starter allocation if no holdings or zero shares
+    # Starter stocks for initial buy if no holdings or zero shares
+    starter_stocks = STARTER_STOCKS
+
     if not holdings or all(h.get("shares", 0) == 0 for h in holdings):
-        prices = get_prices(STARTER_STOCKS)
+        prices = get_prices(starter_stocks)
         recommendations = {"buy": [], "sell": []}
         total_cash = cash_balance
-        per_stock_cash = total_cash / len(STARTER_STOCKS) if STARTER_STOCKS else 0
+        per_stock_cash = total_cash / len(starter_stocks) if starter_stocks else 0
 
-        for ticker in STARTER_STOCKS:
+        for ticker in starter_stocks:
             price = prices.get(ticker)
             if price and price > 0:
-                shares = round(per_stock_cash / price, 3)
+                shares = round(per_stock_cash / price, 3)  # Fractional shares allowed
                 if shares > 0:
-                    recommendations["buy"].append({
-                        "ticker": ticker,
-                        "shares": shares,
-                        "reason": "Initial stock allocation with fractional shares"
-                    })
+                    recommendations["buy"].append(
+                        {
+                            "ticker": ticker,
+                            "shares": shares,
+                            "reason": "Initial stock allocation with fractional shares",
+                        }
+                    )
+
         return recommendations, {}, prices
 
     # Normal analysis with existing holdings
@@ -138,19 +143,27 @@ def analyze_holdings(account_data):
 
         # Sell rule: down >5%
         if change_pct <= -5:
-            recommendations["sell"].append({
-                "ticker": ticker,
-                "shares": shares,
-                "reason": f"Down {change_pct:.2f}% from avg price"
-            })
+            recommendations["sell"].append(
+                {
+                    "ticker": ticker,
+                    "shares": shares,
+                    "reason": f"Down {change_pct:.2f}% from avg price",
+                }
+            )
 
-    # Buy rule example: buy QQQ if cash available
+    # Buy rule example: buy QQQ if cash available, fractional shares allowed
     if cash_balance > 500:
-        recommendations["buy"].append({
-            "ticker": "QQQ",
-            "shares": int(cash_balance // 300),  # Rough estimate
-            "reason": "Tech sector momentum placeholder"
-        })
+        price = prices.get("QQQ")
+        if price and price > 0:
+            shares = round(cash_balance / price, 3)
+            if shares > 0:
+                recommendations["buy"].append(
+                    {
+                        "ticker": "QQQ",
+                        "shares": shares,
+                        "reason": "Tech sector momentum placeholder",
+                    }
+                )
 
     return recommendations, headlines, prices
 
