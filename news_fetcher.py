@@ -18,11 +18,9 @@ def get_balanced_headlines(tickers, per_ticker=1, max_total=10):
         feed = feedparser.parse(url)
         count = 0
         for entry in feed.entries:
-            all_headlines.append({
-                "ticker": ticker,
-                "title": entry.title,
-                "link": entry.link
-            })
+            all_headlines.append(
+                {"ticker": ticker, "title": entry.title, "link": entry.link}
+            )
             count += 1
             if count >= per_ticker:
                 break

@@ -15,7 +15,7 @@ TICKERS = [
     "GOOGL",  # Alphabet
     # Financials
     "JPM",  # JPMorgan Chase
-    "BRK.B",  # Berkshire Hathaway
+    # "BRK.B",  # Berkshire Hathaway
     "V",  # Visa
     # Healthcare
     "JNJ",  # Johnson & Johnson

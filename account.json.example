@@ -1,0 +1,7 @@
+{
+    "cash_balance": 1000.00,
+    "holdings": [
+        {"ticker": "AAPL", "shares": 20, "avg_price": 175.30},
+        {"ticker": "SPY", "shares": 10, "avg_price": 510.00}
+    ]
+}
