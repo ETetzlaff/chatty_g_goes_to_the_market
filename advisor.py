@@ -5,6 +5,8 @@ import datetime
 from pathlib import Path
 
 import yfinance as yf
+
+from fetch_prices import get_stock_performance
 from news_fetcher import get_company_news
 
 
@@ -107,11 +109,10 @@ def analyze_holdings(account_data):
     holdings = account_data.get("holdings", [])
     cash_balance = account_data.get("cash_balance", 0.0)
 
-    # If no holdings and starter stock
+    # Starter stocks if no holdings or zero shares
     if not holdings or all(h.get("shares", 0) == 0 for h in holdings):
         return analyze_starter(account_data)
 
-    # Normal analysis with existing holdings
     tickers = [h["ticker"] for h in holdings]
     prices = get_prices(tickers)
 
@@ -131,39 +132,61 @@ def analyze_holdings(account_data):
         change_pct = ((current_price - avg_price) / avg_price) * 100
         headlines[ticker] = get_company_news(ticker)
 
-        # Sell rule: down >5%
-        if change_pct <= -5:
-            recommendations["sell"].append(
-                {
-                    "ticker": ticker,
-                    "shares": shares,
-                    "reason": f"Down {change_pct:.2f}% from avg price",
-                }
-            )
+        # Performance data for last month (adjust period as needed)
+        perf = get_stock_performance(ticker, period="1mo")
 
+        # Sell rule #1: down >5% from avg purchase price
+        if change_pct <= -5:
+            recommendations["sell"].append({
+                "ticker": ticker,
+                "shares": shares,
+                "reason": f"Down {change_pct:.2f}% from avg price",
+            })
+            continue  # skip further checks if already flagged to sell
+
+        # Sell rule #2: negative news
         if contains_negative_news(headlines.get(ticker, [])):
             recommendations["sell"].append({
                 "ticker": ticker,
                 "shares": shares,
                 "reason": "Negative news detected",
             })
+            continue
 
-    # Buy rule example: buy QQQ if cash available, fractional shares allowed
+        # Sell rule #3: negative recent performance (e.g., down >5% last month)
+        if perf and perf["pct_change"] <= -5:
+            recommendations["sell"].append({
+                "ticker": ticker,
+                "shares": shares,
+                "reason": f"Down {perf['pct_change']:.2f}% over last month",
+            })
+            continue
+
+        # Buy rule: positive recent performance (>5% up in last month)
+        if perf and perf["pct_change"] >= 5:
+            # Buy more if have cash
+            if cash_balance > 100:
+                shares_to_buy = round(cash_balance / current_price, 3)
+                if shares_to_buy > 0:
+                    recommendations["buy"].append({
+                        "ticker": ticker,
+                        "shares": shares_to_buy,
+                        "reason": f"Up {perf['pct_change']:.2f}% over last month, positive momentum",
+                    })
+
+    # Buy fallback: buy QQQ if enough cash
     if cash_balance > 500:
         price = prices.get("QQQ")
         if price and price > 0:
             shares = round(cash_balance / price, 3)
             if shares > 0:
-                recommendations["buy"].append(
-                    {
-                        "ticker": "QQQ",
-                        "shares": shares,
-                        "reason": "Tech sector momentum placeholder",
-                    }
-                )
+                recommendations["buy"].append({
+                    "ticker": "QQQ",
+                    "shares": shares,
+                    "reason": "Tech sector momentum placeholder",
+                })
 
     return recommendations, headlines, prices
-
 
 def analyze_starter(account_data):
     cash_balance = account_data.get("cash_balance", 0.0)
@@ -173,7 +196,7 @@ def analyze_starter(account_data):
     # Get prices for all starter stocks upfront
     prices = get_prices(STARTER_STOCKS)
 
-    # Filter stocks without negative news
+    # Filter stocks without negative news and with positive recent performance
     filtered_stocks = []
     for ticker in STARTER_STOCKS:
         raw_headlines = get_company_news(ticker)
@@ -184,11 +207,19 @@ def analyze_starter(account_data):
 
         if contains_negative_news(titles):
             print(f"Skipping {ticker} recommendation due to negative news")
-        else:
-            filtered_stocks.append(ticker)
+            continue
+
+        # Check recent performance (e.g., 1 month)
+        perf = get_stock_performance(ticker, period="1mo")
+        print(perf)
+        if perf is None or perf["pct_change"] < 0:
+            print(f"Skipping {ticker} recommendation due to negative or no recent performance")
+            continue
+
+        filtered_stocks.append(ticker)
 
     if not filtered_stocks:
-        print("Warning: All starter stocks flagged by negative news, no buys recommended.")
+        print("Warning: All starter stocks flagged by negative news or negative performance, no buys recommended.")
         return recommendations, headlines, prices
 
     # Recalculate per-stock cash allocation after filtering
@@ -203,7 +234,7 @@ def analyze_starter(account_data):
                     {
                         "ticker": ticker,
                         "shares": shares,
-                        "reason": "Initial stock allocation with fractional shares",
+                        "reason": "Initial stock allocation with fractional shares and positive recent performance",
                     }
                 )
 
