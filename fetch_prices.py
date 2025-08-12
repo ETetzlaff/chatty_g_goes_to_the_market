@@ -37,6 +37,20 @@ def get_stock_prices_with_change(tickers):
     return data
 
 
+def get_stock_performance(ticker, period="1mo"):
+    data = yf.Ticker(ticker).history(period=period)
+    if data.empty or len(data) < 2:
+        return None
+    start_price = data["Close"].iloc[0]
+    end_price = data["Close"].iloc[-1]
+    pct_change = ((end_price - start_price) / start_price) * 100
+    return {
+        "pct_change": pct_change,
+        "start_price": start_price,
+        "end_price": end_price,
+    }
+
+
 if __name__ == "__main__":
     from config import TICKERS
 

@@ -2,7 +2,7 @@ import feedparser
 import random
 
 
-def get_company_news(ticker, max_items=5):
+def get_company_news(ticker, max_items=3):
     url = f"https://news.google.com/rss/search?q={ticker}+stock"
     feed = feedparser.parse(url)
     headlines = []

@@ -5,7 +5,7 @@ import datetime
 from pathlib import Path
 
 import yfinance as yf
-from news_fetcher import get_balanced_headlines
+from news_fetcher import get_company_news
 
 
 # -----------------------------
@@ -14,7 +14,6 @@ from news_fetcher import get_balanced_headlines
 CSV_FILE = Path("data/schwab_holdings.csv")
 JSON_FILE = Path("account.json")
 LOGS_DIR = Path("logs")
-
 STARTER_STOCKS = ["AAPL", "MSFT", "TSLA", "NVDA", "AMZN"]
 
 
@@ -91,35 +90,26 @@ def get_prices(tickers):
 
 
 # -----------------------------
+# Utilities
+# -----------------------------
+def contains_negative_news(headlines):
+    negative_keywords = ["lawsuit", "drop", "recall", "miss", "decline", "warn"]
+    return any(
+        any(kw.lower() in headline.lower() for kw in negative_keywords)
+        for headline in headlines
+    )
+
+
+# -----------------------------
 # Advisor Logic (Buy/Sell)
 # -----------------------------
 def analyze_holdings(account_data):
     holdings = account_data.get("holdings", [])
     cash_balance = account_data.get("cash_balance", 0.0)
 
-    # Starter stocks for initial buy if no holdings or zero shares
-    starter_stocks = STARTER_STOCKS
-
+    # If no holdings and starter stock
     if not holdings or all(h.get("shares", 0) == 0 for h in holdings):
-        prices = get_prices(starter_stocks)
-        recommendations = {"buy": [], "sell": []}
-        total_cash = cash_balance
-        per_stock_cash = total_cash / len(starter_stocks) if starter_stocks else 0
-
-        for ticker in starter_stocks:
-            price = prices.get(ticker)
-            if price and price > 0:
-                shares = round(per_stock_cash / price, 3)  # Fractional shares allowed
-                if shares > 0:
-                    recommendations["buy"].append(
-                        {
-                            "ticker": ticker,
-                            "shares": shares,
-                            "reason": "Initial stock allocation with fractional shares",
-                        }
-                    )
-
-        return recommendations, {}, prices
+        return analyze_starter(account_data)
 
     # Normal analysis with existing holdings
     tickers = [h["ticker"] for h in holdings]
@@ -139,7 +129,7 @@ def analyze_holdings(account_data):
             continue
 
         change_pct = ((current_price - avg_price) / avg_price) * 100
-        headlines[ticker] = get_balanced_headlines(ticker)
+        headlines[ticker] = get_company_news(ticker)
 
         # Sell rule: down >5%
         if change_pct <= -5:
@@ -150,6 +140,13 @@ def analyze_holdings(account_data):
                     "reason": f"Down {change_pct:.2f}% from avg price",
                 }
             )
+
+        if contains_negative_news(headlines.get(ticker, [])):
+            recommendations["sell"].append({
+                "ticker": ticker,
+                "shares": shares,
+                "reason": "Negative news detected",
+            })
 
     # Buy rule example: buy QQQ if cash available, fractional shares allowed
     if cash_balance > 500:
@@ -162,6 +159,51 @@ def analyze_holdings(account_data):
                         "ticker": "QQQ",
                         "shares": shares,
                         "reason": "Tech sector momentum placeholder",
+                    }
+                )
+
+    return recommendations, headlines, prices
+
+
+def analyze_starter(account_data):
+    cash_balance = account_data.get("cash_balance", 0.0)
+    headlines = {}
+    recommendations = {"buy": [], "sell": []}
+
+    # Get prices for all starter stocks upfront
+    prices = get_prices(STARTER_STOCKS)
+
+    # Filter stocks without negative news
+    filtered_stocks = []
+    for ticker in STARTER_STOCKS:
+        raw_headlines = get_company_news(ticker)
+        headlines[ticker] = raw_headlines
+
+        # Extract just the titles for negative news check
+        titles = [h.get("title", "") for h in raw_headlines]
+
+        if contains_negative_news(titles):
+            print(f"Skipping {ticker} recommendation due to negative news")
+        else:
+            filtered_stocks.append(ticker)
+
+    if not filtered_stocks:
+        print("Warning: All starter stocks flagged by negative news, no buys recommended.")
+        return recommendations, headlines, prices
+
+    # Recalculate per-stock cash allocation after filtering
+    per_stock_cash = cash_balance / len(filtered_stocks)
+
+    for ticker in filtered_stocks:
+        price = prices.get(ticker)
+        if price and price > 0:
+            shares = round(per_stock_cash / price, 3)  # Fractional shares allowed
+            if shares > 0:
+                recommendations["buy"].append(
+                    {
+                        "ticker": ticker,
+                        "shares": shares,
+                        "reason": "Initial stock allocation with fractional shares",
                     }
                 )
 
@@ -212,8 +254,16 @@ def run_advisor():
 
     if recommendations["buy"]:
         print("\nBuy Recommendations:")
+        # for buy in recommendations["buy"]:
+        # print(f" - Buy {buy['shares']} shares of {buy['ticker']} ({buy['reason']})")
         for buy in recommendations["buy"]:
-            print(f" - Buy {buy['shares']} shares of {buy['ticker']} ({buy['reason']})")
+            ticker = buy["ticker"]
+            print(f" - Buy {buy['shares']} shares of {ticker} ({buy['reason']})")
+            # Print headlines for this ticker
+            if ticker in headlines:
+                print("   Headlines:")
+                for headline in headlines[ticker]:
+                    print(f"     * {headline}")
     else:
         print("\nNo buy recommendations.")
 
