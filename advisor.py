@@ -119,7 +119,9 @@ def analyze_holdings(account_data):
     recommendations = {"buy": [], "sell": []}
     headlines = {}
 
-    # First handle sell recommendations based on performance/news
+    # -----------------------------
+    # Sell Recommendations
+    # -----------------------------
     for h in holdings:
         ticker = h["ticker"]
         shares = h.get("shares", 0)
@@ -159,9 +161,10 @@ def analyze_holdings(account_data):
             })
             continue
 
-    # Collect positive performers for performance-weighted buys
+    # -----------------------------
+    # Buy Recommendations
+    # -----------------------------
     positive_candidates = []
-    total_score = 0
     for h in holdings:
         ticker = h["ticker"]
         current_price = prices.get(ticker)
@@ -171,24 +174,14 @@ def analyze_holdings(account_data):
         perf = get_stock_performance(ticker, period="1mo")
         if perf and perf["pct_change"] > 0:
             positive_candidates.append((ticker, perf["pct_change"]))
-            total_score += perf["pct_change"]
 
-    # Allocate remaining cash proportionally to performance
-    for ticker, score in positive_candidates:
-        weight = score / total_score
-        cash_for_stock = cash_balance * weight
-        price = prices.get(ticker)
-        if price and price > 0:
-            shares_to_buy = round(cash_for_stock / price, 3)
-            if shares_to_buy > 0:
-                recommendations["buy"].append({
-                    "ticker": ticker,
-                    "shares": shares_to_buy,
-                    "cost_usd": round(shares_to_buy * price, 2),
-                    "reason": f"Performance-weighted buy, up {score:.2f}% last month"
-                })
+    # Allocate cash proportionally to performance using the shared helper
+    buy_recs = allocate_cash_weighted_by_performance(
+        positive_candidates, prices, cash_balance, headlines
+    )
+    recommendations["buy"].extend(buy_recs)
 
-    # Fallback buy (optional) for QQQ if cash remains
+    # Fallback buy: QQQ if significant cash remains
     if cash_balance > 500:
         price = prices.get("QQQ")
         if price and price > 0:
@@ -211,9 +204,8 @@ def analyze_starter(account_data):
 
     prices = get_prices(STARTER_STOCKS)
 
-    # Collect positive performers with clean news
+    # Collect positive candidates with clean news
     candidates = []
-    total_score = 0
     for ticker in STARTER_STOCKS:
         raw_headlines = get_company_news(ticker)
         headlines[ticker] = raw_headlines
@@ -224,33 +216,45 @@ def analyze_starter(account_data):
             continue
 
         perf = get_stock_performance(ticker, period="1mo")
-        if not perf or perf["pct_change"] <= 0:
-            print(f"Skipping {ticker} due to non-positive performance")
-            continue
+        if perf and perf["pct_change"] > 0:
+            candidates.append((ticker, perf["pct_change"]))
 
-        candidates.append((ticker, perf["pct_change"]))
-        total_score += perf["pct_change"]
+    # Allocate cash using the shared helper
+    recommendations["buy"] = allocate_cash_weighted_by_performance(
+        candidates, prices, cash_balance, headlines
+    )
 
-    if not candidates:
-        print("No starter stocks passed news/performance filters")
-        return recommendations, headlines, prices
+    return recommendations, headlines, prices
 
-    # Allocate cash weighted by performance
+
+def allocate_cash_weighted_by_performance(candidates, prices, cash_balance, headlines):
+    """
+    candidates: list of tuples (ticker, perf_score)
+    prices: dict of current prices {ticker: price}
+    cash_balance: float
+    headlines: dict to store news {ticker: headlines_list}
+
+    Returns: list of buy recommendations
+    """
+    recommendations = []
+    total_score = sum(score for _, score in candidates)
+    if total_score == 0:
+        return recommendations
+
     for ticker, score in candidates:
         weight = score / total_score
         cash_for_stock = cash_balance * weight
         price = prices.get(ticker)
         if price and price > 0:
-            shares = round(cash_for_stock / price, 3)
-            if shares > 0:
-                recommendations["buy"].append({
+            shares_to_buy = round(cash_for_stock / price, 3)
+            if shares_to_buy > 0:
+                recommendations.append({
                     "ticker": ticker,
-                    "shares": shares,
-                    "cost_usd": round(shares * price, 2),
-                    "reason": f"Performance-weighted starter allocation, up {score:.2f}% last month"
+                    "shares": shares_to_buy,
+                    "cost_usd": round(shares_to_buy * price, 2),
+                    "reason": f"Performance-weighted buy, up {score:.2f}% last month"
                 })
-
-    return recommendations, headlines, prices
+    return recommendations
 
 
 # -----------------------------
