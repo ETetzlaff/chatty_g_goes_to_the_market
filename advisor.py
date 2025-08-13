@@ -16,7 +16,13 @@ from news_fetcher import get_company_news
 CSV_FILE = Path("data/schwab_holdings.csv")
 JSON_FILE = Path("account.json")
 LOGS_DIR = Path("logs")
-STARTER_STOCKS = ["AAPL", "MSFT", "TSLA", "NVDA", "AMZN"]
+STARTER_STOCKS = [
+    "AAPL",
+    "MSFT",
+    "TSLA",
+    "NVDA",
+    "AMZN"
+]
 
 
 # -----------------------------
