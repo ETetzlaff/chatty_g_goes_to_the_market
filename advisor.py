@@ -16,7 +16,13 @@ from news_fetcher import get_company_news
 CSV_FILE = Path("data/schwab_holdings.csv")
 JSON_FILE = Path("account.json")
 LOGS_DIR = Path("logs")
-STARTER_STOCKS = ["AAPL", "MSFT", "TSLA", "NVDA", "AMZN"]
+STARTER_STOCKS = [
+    "AAPL",
+    "MSFT",
+    "TSLA",
+    "NVDA",
+    "AMZN"
+]
 
 
 # -----------------------------
@@ -29,34 +35,55 @@ def convert_schwab_csv(csv_file, json_file):
     if not csv_file.exists():
         raise FileNotFoundError(f"Schwab CSV not found: {csv_file}")
 
+    # Read raw lines first to find the header row
     with open(csv_file, newline="", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            symbol = row.get("Symbol", "").strip()
-            if not symbol:
-                continue
+        lines = f.readlines()
 
-            try:
-                quantity = float(row.get("Quantity", "0").replace(",", ""))
-            except ValueError:
-                quantity = 0
+    # Find the line that starts with "Symbol" (the actual CSV header)
+    header_idx = None
+    for i, line in enumerate(lines):
+        if line.strip().startswith('"Symbol"'):
+            header_idx = i
+            break
 
-            try:
-                market_value = float(row.get("Market Value", "0").replace(",", ""))
-            except ValueError:
-                market_value = 0
+    if header_idx is None:
+        raise ValueError("Could not find CSV header row with 'Symbol'")
 
-            # Cash or money market handling
-            if (
-                "CASH" in symbol.upper()
-                or "MONEY MARKET" in row.get("Description", "").upper()
-            ):
-                cash_balance += market_value
-                continue
+    # Re-open CSV from header line
+    csv_data = lines[header_idx:]
+    reader = csv.DictReader(csv_data)
 
-            holdings.append(
-                {"ticker": symbol, "shares": quantity, "market_value": market_value}
-            )
+    for row in reader:
+        symbol = row.get("Symbol", "").strip()
+        if not symbol or symbol == "Account Total":
+            continue
+
+        sec_type = row.get("Security Type", "").strip().upper()
+
+        # Parse market value safely
+        market_val_str = row.get("Mkt Val (Market Value)", "0").replace("$", "").replace(",", "")
+        try:
+            market_value = float(market_val_str) if market_val_str not in ("--", "") else 0.0
+        except ValueError:
+            market_value = 0.0
+
+        # Handle cash/money market
+        if "CASH" in symbol.upper() or "MONEY MARKET" in sec_type:
+            cash_balance += market_value
+            continue
+
+        # Parse quantity safely
+        qty_str = row.get("Qty (Quantity)", "0").replace(",", "")
+        try:
+            quantity = float(qty_str) if qty_str not in ("--", "") else 0.0
+        except ValueError:
+            quantity = 0.0
+
+        holdings.append({
+            "ticker": symbol,
+            "shares": quantity,
+            "market_value": market_value
+        })
 
     account_data = {
         "account_name": "Schwab Brokerage",
@@ -138,33 +165,27 @@ def analyze_holdings(account_data):
 
         # Sell rules
         if change_pct <= -5:
-            recommendations["sell"].append(
-                {
-                    "ticker": ticker,
-                    "shares": shares,
-                    "reason": f"Down {change_pct:.2f}% from avg price",
-                }
-            )
+            recommendations["sell"].append({
+                "ticker": ticker,
+                "shares": shares,
+                "reason": f"Down {change_pct:.2f}% from avg price",
+            })
             continue
 
         if contains_negative_news(headlines.get(ticker, [])):
-            recommendations["sell"].append(
-                {
-                    "ticker": ticker,
-                    "shares": shares,
-                    "reason": "Negative news detected",
-                }
-            )
+            recommendations["sell"].append({
+                "ticker": ticker,
+                "shares": shares,
+                "reason": "Negative news detected",
+            })
             continue
 
         if perf and perf["pct_change"] <= -5:
-            recommendations["sell"].append(
-                {
-                    "ticker": ticker,
-                    "shares": shares,
-                    "reason": f"Down {perf['pct_change']:.2f}% over last month",
-                }
-            )
+            recommendations["sell"].append({
+                "ticker": ticker,
+                "shares": shares,
+                "reason": f"Down {perf['pct_change']:.2f}% over last month",
+            })
             continue
 
     # -----------------------------
@@ -193,14 +214,12 @@ def analyze_holdings(account_data):
         if price and price > 0:
             shares = round(cash_balance / price, 3)
             if shares > 0:
-                recommendations["buy"].append(
-                    {
-                        "ticker": "QQQ",
-                        "shares": shares,
-                        "cost_usd": round(shares * price, 2),
-                        "reason": "Tech sector momentum placeholder",
-                    }
-                )
+                recommendations["buy"].append({
+                    "ticker": "QQQ",
+                    "shares": shares,
+                    "cost_usd": round(shares * price, 2),
+                    "reason": "Tech sector momentum placeholder"
+                })
 
     return recommendations, headlines, prices
 
@@ -256,14 +275,12 @@ def allocate_cash_weighted_by_performance(candidates, prices, cash_balance, head
         if price and price > 0:
             shares_to_buy = round(cash_for_stock / price, 3)
             if shares_to_buy > 0:
-                recommendations.append(
-                    {
-                        "ticker": ticker,
-                        "shares": shares_to_buy,
-                        "cost_usd": round(shares_to_buy * price, 2),
-                        "reason": f"Performance-weighted buy, up {score:.2f}% last month",
-                    }
-                )
+                recommendations.append({
+                    "ticker": ticker,
+                    "shares": shares_to_buy,
+                    "cost_usd": round(shares_to_buy * price, 2),
+                    "reason": f"Performance-weighted buy, up {score:.2f}% last month"
+                })
     return recommendations
 
 
@@ -275,8 +292,12 @@ def run_advisor():
     convert_schwab_csv(CSV_FILE, JSON_FILE)
 
     # Load account data
+    account_data = {}
     with open(JSON_FILE, "r", encoding="utf-8") as f:
         account_data = json.load(f)
+
+    print("Hmmm")
+    print(account_data)
 
     # Analyze holdings and get recommendations
     recommendations, headlines, prices = analyze_holdings(account_data)
@@ -314,9 +335,7 @@ def run_advisor():
         for buy in recommendations["buy"]:
             ticker = buy["ticker"]
             cost_str = f"${buy['cost_usd']:.2f}" if "cost_usd" in buy else "N/A"
-            print(
-                f" - Buy {buy['shares']} shares of {ticker} for {cost_str} ({buy['reason']})"
-            )
+            print(f" - Buy {buy['shares']} shares of {ticker} for {cost_str} ({buy['reason']})")
             if ticker in headlines:
                 print("   Headlines:")
                 for headline in headlines[ticker]:
