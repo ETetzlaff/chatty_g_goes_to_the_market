@@ -119,6 +119,7 @@ def analyze_holdings(account_data):
     recommendations = {"buy": [], "sell": []}
     headlines = {}
 
+    # First handle sell recommendations based on performance/news
     for h in holdings:
         ticker = h["ticker"]
         shares = h.get("shares", 0)
@@ -131,9 +132,9 @@ def analyze_holdings(account_data):
 
         change_pct = ((current_price - avg_price) / avg_price) * 100
         headlines[ticker] = get_company_news(ticker)
-
         perf = get_stock_performance(ticker, period="1mo")
 
+        # Sell rules
         if change_pct <= -5:
             recommendations["sell"].append({
                 "ticker": ticker,
@@ -158,17 +159,36 @@ def analyze_holdings(account_data):
             })
             continue
 
-        if perf and perf["pct_change"] >= 5:
-            if cash_balance > 100:
-                shares_to_buy = round(cash_balance / current_price, 3)
-                if shares_to_buy > 0:
-                    recommendations["buy"].append({
-                        "ticker": ticker,
-                        "shares": shares_to_buy,
-                        "cost_usd": round(shares_to_buy * current_price, 2),  # NEW
-                        "reason": f"Up {perf['pct_change']:.2f}% over last month, positive momentum",
-                    })
+    # Collect positive performers for performance-weighted buys
+    positive_candidates = []
+    total_score = 0
+    for h in holdings:
+        ticker = h["ticker"]
+        current_price = prices.get(ticker)
+        if not current_price:
+            continue
 
+        perf = get_stock_performance(ticker, period="1mo")
+        if perf and perf["pct_change"] > 0:
+            positive_candidates.append((ticker, perf["pct_change"]))
+            total_score += perf["pct_change"]
+
+    # Allocate remaining cash proportionally to performance
+    for ticker, score in positive_candidates:
+        weight = score / total_score
+        cash_for_stock = cash_balance * weight
+        price = prices.get(ticker)
+        if price and price > 0:
+            shares_to_buy = round(cash_for_stock / price, 3)
+            if shares_to_buy > 0:
+                recommendations["buy"].append({
+                    "ticker": ticker,
+                    "shares": shares_to_buy,
+                    "cost_usd": round(shares_to_buy * price, 2),
+                    "reason": f"Performance-weighted buy, up {score:.2f}% last month"
+                })
+
+    # Fallback buy (optional) for QQQ if cash remains
     if cash_balance > 500:
         price = prices.get("QQQ")
         if price and price > 0:
@@ -177,8 +197,8 @@ def analyze_holdings(account_data):
                 recommendations["buy"].append({
                     "ticker": "QQQ",
                     "shares": shares,
-                    "cost_usd": round(shares * price, 2),  # NEW
-                    "reason": "Tech sector momentum placeholder",
+                    "cost_usd": round(shares * price, 2),
+                    "reason": "Tech sector momentum placeholder"
                 })
 
     return recommendations, headlines, prices
@@ -191,44 +211,44 @@ def analyze_starter(account_data):
 
     prices = get_prices(STARTER_STOCKS)
 
-    filtered_stocks = []
+    # Collect positive performers with clean news
+    candidates = []
+    total_score = 0
     for ticker in STARTER_STOCKS:
         raw_headlines = get_company_news(ticker)
         headlines[ticker] = raw_headlines
-
         titles = [h.get("title", "") for h in raw_headlines]
 
         if contains_negative_news(titles):
-            print(f"Skipping {ticker} recommendation due to negative news")
+            print(f"Skipping {ticker} due to negative news")
             continue
 
         perf = get_stock_performance(ticker, period="1mo")
-        print(perf)
-        if perf is None or perf["pct_change"] < 0:
-            print(f"Skipping {ticker} recommendation due to negative or no recent performance")
+        if not perf or perf["pct_change"] <= 0:
+            print(f"Skipping {ticker} due to non-positive performance")
             continue
 
-        filtered_stocks.append(ticker)
+        candidates.append((ticker, perf["pct_change"]))
+        total_score += perf["pct_change"]
 
-    if not filtered_stocks:
-        print("Warning: All starter stocks flagged by negative news or negative performance, no buys recommended.")
+    if not candidates:
+        print("No starter stocks passed news/performance filters")
         return recommendations, headlines, prices
 
-    per_stock_cash = cash_balance / len(filtered_stocks)
-
-    for ticker in filtered_stocks:
+    # Allocate cash weighted by performance
+    for ticker, score in candidates:
+        weight = score / total_score
+        cash_for_stock = cash_balance * weight
         price = prices.get(ticker)
         if price and price > 0:
-            shares = round(per_stock_cash / price, 3)
+            shares = round(cash_for_stock / price, 3)
             if shares > 0:
-                recommendations["buy"].append(
-                    {
-                        "ticker": ticker,
-                        "shares": shares,
-                        "cost_usd": round(shares * price, 2),  # NEW
-                        "reason": "Initial stock allocation with fractional shares and positive recent performance",
-                    }
-                )
+                recommendations["buy"].append({
+                    "ticker": ticker,
+                    "shares": shares,
+                    "cost_usd": round(shares * price, 2),
+                    "reason": f"Performance-weighted starter allocation, up {score:.2f}% last month"
+                })
 
     return recommendations, headlines, prices
 
