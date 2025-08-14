@@ -2,22 +2,16 @@ import json
 import csv
 import os
 import datetime
-from pathlib import Path
 
-import yfinance as yf
-
+from config import (
+    CSV_FILE,
+    JSON_FILE,
+    LOGS_DIR,
+    TICKERS,
+)
 from fetch_prices import get_stock_performance, get_prices
 from analyze import suggest_high_performing_tickers
 from news_fetcher import get_company_news
-
-
-# -----------------------------
-# Config
-# -----------------------------
-CSV_FILE = Path("data/schwab_holdings.csv")
-JSON_FILE = Path("account.json")
-LOGS_DIR = Path("logs")
-STARTER_STOCKS = ["AAPL", "MSFT", "NVDA", "AMZN", "AMD"]
 
 
 # -----------------------------
@@ -228,16 +222,16 @@ def analyze_starter(account_data):
     headlines = {}
     recommendations = {"buy": [], "sell": []}
 
-    prices = get_prices(STARTER_STOCKS)
+    prices = get_prices(TICKERS)
 
     # Collect positive candidates with clean news
     candidates = collect_positive_candidates(
-        STARTER_STOCKS, headlines, filter_negative_news=True, verbose=True
+        TICKERS, headlines, filter_negative_news=True, verbose=True
     )
 
     # Ask GPT for additional high-performing tickers and apply same clean-news filter
     gpt_suggestions = suggest_high_performing_tickers(
-        preferred_universe=None, exclude=STARTER_STOCKS, max_count=5
+        preferred_universe=None, exclude=TICKERS, max_count=5
     )
     if gpt_suggestions:
         gpt_prices = get_prices(gpt_suggestions)

@@ -1,13 +1,18 @@
 import os
 from dotenv import load_dotenv
+from pathlib import Path
 
 load_dotenv()  # loads .env file if present
 
+CSV_FILE = Path("data/schwab_holdings.csv")
+JSON_FILE = Path("account.json")
+LOGS_DIR = Path("logs")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # TICKERS = ["VOO", "VTI", "AAPLE", "GOOGL", "AAPL", "NVDA", "AMZN", "MSFT"]
 
-TICKERS = [
+TICKERS = ["AAPL", "MSFT", "NVDA", "AMZN", "AMD"]
+NEW_TICKERS = [
     # Technology
     "AAPL",  # Apple
     "MSFT",  # Microsoft
