@@ -7,6 +7,7 @@ from pathlib import Path
 import yfinance as yf
 
 from fetch_prices import get_stock_performance, get_prices
+from analyze import suggest_high_performing_tickers
 from news_fetcher import get_company_news
 
 
@@ -185,6 +186,19 @@ def analyze_holdings(account_data):
         tickers, headlines, filter_negative_news=False, verbose=False
     )
 
+    # Ask GPT for additional high-performing tickers not already held
+    gpt_suggestions = suggest_high_performing_tickers(
+        preferred_universe=None, exclude=tickers, max_count=5
+    )
+    if gpt_suggestions:
+        gpt_prices = get_prices(gpt_suggestions)
+        if isinstance(gpt_prices, dict):
+            prices.update(gpt_prices)
+        gpt_candidates = collect_positive_candidates(
+            gpt_suggestions, headlines, filter_negative_news=False, verbose=False
+        )
+        positive_candidates.extend(gpt_candidates)
+
     # Allocate cash proportionally to performance using the shared helper
     buy_recs = allocate_cash_weighted_by_performance(
         positive_candidates, prices, cash_balance, headlines
@@ -220,6 +234,23 @@ def analyze_starter(account_data):
     candidates = collect_positive_candidates(
         STARTER_STOCKS, headlines, filter_negative_news=True, verbose=True
     )
+
+    # Ask GPT for additional high-performing tickers and apply same clean-news filter
+    gpt_suggestions = suggest_high_performing_tickers(
+        preferred_universe=None, exclude=STARTER_STOCKS, max_count=5
+    )
+    if gpt_suggestions:
+        gpt_prices = get_prices(gpt_suggestions)
+        if isinstance(gpt_prices, dict):
+            prices.update(gpt_prices)
+        gpt_candidates = collect_positive_candidates(
+            gpt_suggestions, headlines, filter_negative_news=True, verbose=True
+        )
+        existing = set(t for t, _ in candidates)
+        for t, score in gpt_candidates:
+            if t not in existing:
+                candidates.append((t, score))
+                existing.add(t)
 
     # Allocate cash using the shared helper
     recommendations["buy"] = allocate_cash_weighted_by_performance(
