@@ -129,6 +129,14 @@ def contains_negative_news(headlines):
     )
 
 
+def print_ticker_headlines(headlines):
+    for headline in headlines:
+        if isinstance(headline, dict):
+            print(f"     * {headline.get('title', headline)}")
+        else:
+            print(f"     * {headline}")
+
+
 # -----------------------------
 # Advisor Logic (Buy/Sell)
 # -----------------------------
@@ -240,6 +248,7 @@ def analyze_starter(account_data):
 
         if contains_negative_news(titles):
             print(f"Skipping {ticker} due to negative news")
+            print_ticker_headlines(titles)
             continue
 
         perf = get_stock_performance(ticker, period="1mo")
@@ -296,9 +305,6 @@ def run_advisor():
     with open(JSON_FILE, "r", encoding="utf-8") as f:
         account_data = json.load(f)
 
-    print("Hmmm")
-    print(account_data)
-
     # Analyze holdings and get recommendations
     recommendations, headlines, prices = analyze_holdings(account_data)
 
@@ -338,11 +344,7 @@ def run_advisor():
             print(f" - Buy {buy['shares']} shares of {ticker} for {cost_str} ({buy['reason']})")
             if ticker in headlines:
                 print("   Headlines:")
-                for headline in headlines[ticker]:
-                    if isinstance(headline, dict):
-                        print(f"     * {headline.get('title', headline)}")
-                    else:
-                        print(f"     * {headline}")
+                print_ticker_headlines(headlines[ticker])
     else:
         print("\nNo buy recommendations.")
 
