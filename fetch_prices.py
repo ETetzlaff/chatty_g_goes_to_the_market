@@ -1,6 +1,23 @@
 import yfinance as yf
 
 
+def get_prices(tickers):
+    prices = {}
+    if not tickers:
+        return prices
+
+    try:
+        data = yf.download(tickers=tickers, period="1d", interval="1m")["Close"].iloc[
+            -1
+        ]
+        for ticker in tickers:
+            prices[ticker] = float(data[ticker]) if ticker in data else None
+    except Exception as e:
+        print(f"Error fetching prices: {e}")
+
+    return prices
+
+
 def get_stock_prices(tickers):
     data = {}
     for ticker in tickers:

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import yfinance as yf
 
-from fetch_prices import get_stock_performance
+from fetch_prices import get_stock_performance, get_prices
 from news_fetcher import get_company_news
 
 
@@ -16,7 +16,7 @@ from news_fetcher import get_company_news
 CSV_FILE = Path("data/schwab_holdings.csv")
 JSON_FILE = Path("account.json")
 LOGS_DIR = Path("logs")
-STARTER_STOCKS = ["AAPL", "MSFT", "TSLA", "NVDA", "AMZN"]
+STARTER_STOCKS = ["AAPL", "MSFT", "NVDA", "AMZN"]
 
 
 # -----------------------------
@@ -92,26 +92,6 @@ def convert_schwab_csv(csv_file, json_file):
         json.dump(account_data, f, indent=2)
 
     print(f"✅ Converted {csv_file} → {json_file}")
-
-
-# -----------------------------
-# Fetch Prices
-# -----------------------------
-def get_prices(tickers):
-    prices = {}
-    if not tickers:
-        return prices
-
-    try:
-        data = yf.download(tickers=tickers, period="1d", interval="1m")["Close"].iloc[
-            -1
-        ]
-        for ticker in tickers:
-            prices[ticker] = float(data[ticker]) if ticker in data else None
-    except Exception as e:
-        print(f"Error fetching prices: {e}")
-
-    return prices
 
 
 # -----------------------------
@@ -201,16 +181,9 @@ def analyze_holdings(account_data):
     # -----------------------------
     # Buy Recommendations
     # -----------------------------
-    positive_candidates = []
-    for h in holdings:
-        ticker = h["ticker"]
-        current_price = prices.get(ticker)
-        if not current_price:
-            continue
-
-        perf = get_stock_performance(ticker, period="1mo")
-        if perf and perf["pct_change"] > 0:
-            positive_candidates.append((ticker, perf["pct_change"]))
+    positive_candidates = collect_positive_candidates(
+        tickers, headlines, filter_negative_news=False, verbose=False
+    )
 
     # Allocate cash proportionally to performance using the shared helper
     buy_recs = allocate_cash_weighted_by_performance(
@@ -244,20 +217,9 @@ def analyze_starter(account_data):
     prices = get_prices(STARTER_STOCKS)
 
     # Collect positive candidates with clean news
-    candidates = []
-    for ticker in STARTER_STOCKS:
-        raw_headlines = get_company_news(ticker)
-        headlines[ticker] = raw_headlines
-        titles = [h.get("title", "") for h in raw_headlines]
-
-        if contains_negative_news(titles):
-            print(f"Skipping {ticker} due to negative news")
-            print_ticker_headlines(titles)
-            continue
-
-        perf = get_stock_performance(ticker, period="1mo")
-        if perf and perf["pct_change"] > 0:
-            candidates.append((ticker, perf["pct_change"]))
+    candidates = collect_positive_candidates(
+        STARTER_STOCKS, headlines, filter_negative_news=True, verbose=True
+    )
 
     # Allocate cash using the shared helper
     recommendations["buy"] = allocate_cash_weighted_by_performance(
@@ -265,6 +227,36 @@ def analyze_starter(account_data):
     )
 
     return recommendations, headlines, prices
+
+
+def collect_positive_candidates(tickers, headlines, filter_negative_news=False, verbose=False):
+    """
+    Build a list of positive momentum candidates.
+
+    tickers: list of symbols to evaluate
+    headlines: dict to populate when fetching news
+    filter_negative_news: whether to skip tickers with negative news
+    verbose: whether to print skip reasons and headlines when filtering
+
+    Returns: list of tuples (ticker, pct_change)
+    """
+    candidates = []
+    for ticker in tickers:
+        if filter_negative_news:
+            raw_headlines = get_company_news(ticker)
+            headlines[ticker] = raw_headlines
+            titles = [h.get("title", "") for h in raw_headlines]
+            if contains_negative_news(titles):
+                if verbose:
+                    print(f"Skipping {ticker} due to negative news")
+                    print_ticker_headlines(titles)
+                continue
+
+        perf = get_stock_performance(ticker, period="1mo")
+        if perf and perf.get("pct_change", 0) > 0:
+            candidates.append((ticker, perf["pct_change"]))
+
+    return candidates
 
 
 def allocate_cash_weighted_by_performance(candidates, prices, cash_balance, headlines):
